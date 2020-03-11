@@ -26,6 +26,12 @@
         TARGET_LINK_LIBRARIES(seg_CalcTopNCC _seg_tools _seg_FMM _seg_nifti ${ZLIB})
     INSTALL_TARGETS(/bin seg_CalcTopNCC)
 
+# PGD
+    ADD_EXECUTABLE(seg_GetNCCscores seg_GetNCCscores.cpp)
+        TARGET_LINK_LIBRARIES(seg_GetNCCscores _seg_tools _seg_FMM _seg_nifti ${ZLIB})
+    INSTALL_TARGETS(/bin seg_GetNCCscores)
+#
+
     ADD_EXECUTABLE(seg_PatchMatch seg_PatchMatch.cpp)
 	TARGET_LINK_LIBRARIES(seg_PatchMatch _seg_PatchMatch _seg_tools _seg_FMM _seg_nifti ${ZLIB})
     INSTALL_TARGETS(/bin seg_PatchMatch)
@@ -43,6 +49,7 @@ set(MODULE_LIST
   seg_LabFusion
   seg_maths
   seg_CalcTopNCC
+  seg_GetNCCscores # PGD
   seg_PatchMatch
   seg_FillLesions
 )
