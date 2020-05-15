@@ -58,6 +58,8 @@ protected:
 
     // LNCC
     unsigned char * LNCC;
+
+    segPrecisionTYPE * LNCCvalues;
     bool LNCC_status;
     unsigned char * NCC;
     bool NCC_status;
@@ -79,7 +81,10 @@ protected:
     int STAPLE_STEPS_Multiclass_Maximization();
     int STAPLE_STEPS_Multiclass_Expectation();
     int STAPLE_STEPS_Multiclass_Expectation_Maximization();
+
     int MV_Estimate();
+    int MV_Estimate_pgd();
+    
     int SBA_Estimate();
     int UpdateMRF();
     int Allocate_Stuff_MV();
@@ -117,6 +122,3 @@ public:
     nifti_image *GetResult_label();
     nifti_image *GetResult_probability();
 };
-
-
-

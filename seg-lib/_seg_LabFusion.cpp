@@ -1,5 +1,5 @@
 #include "_seg_LabFusion.h"
-
+#include <math.h>
 
 
 
@@ -286,8 +286,12 @@ int seg_LabFusion::SetLNCC(nifti_image * _LNCC,nifti_image * BaseImage,segPrecis
     {
         if(_LNCC->datatype==DT_FLOAT)
         {
-            this->LNCC=estimateLNCC5D(BaseImage,_LNCC,distance,Numb_Neigh,this->CurrSizes,this->verbose_level);
-            this->LNCC_status = true;
+          if (this->Numb_Neigh == _LNCC->nt)
+            this->LNCCvalues = estimateLNCC5D_pgd(BaseImage,_LNCC,distance,Numb_Neigh,this->CurrSizes,this->verbose_level);
+          else
+            this->LNCC = estimateLNCC5D(BaseImage,_LNCC,distance,Numb_Neigh,this->CurrSizes,this->verbose_level);
+
+          this->LNCC_status = true;
 
         }
         else
@@ -1133,6 +1137,171 @@ int seg_LabFusion::SBA_Estimate()
 
 }
 
+
+
+int seg_LabFusion::MV_Estimate_pgd()
+{
+    std::cout << "    in MV_Estimate_pgd()" << std::endl;
+
+    segPrecisionTYPE * tmpW=new segPrecisionTYPE [this->NumberOfLabels];
+    if(tmpW == NULL)
+    {
+        fprintf(stderr,"* Error when alocating tmpW: Not enough memory\n");
+        seg_exit();
+    }
+
+    categoricalLabelType * inputCLASSIFIERptr = static_cast<categoricalLabelType *>(this->inputCLASSIFIER->data);
+
+    std::cout << " PGD - in MV_Estimate_pgd()" << std::endl;
+
+    this->tracePQ=0;
+    for(long i=0; i<(this->CurrSizes->numel); i++)
+    {
+        if(this->LNCC_status)
+        {
+          segPrecisionTYPE * tmp_label_scores_at_thisVoxel = new segPrecisionTYPE [this->NumberOfLabels];
+          for(long iLab = 0; iLab<this->NumberOfLabels; iLab++)
+          {
+            if (iLab == 0)
+              tmp_label_scores_at_thisVoxel [ iLab ] = 0.00001;
+            else
+              tmp_label_scores_at_thisVoxel [ iLab ] = 0.0;
+          }
+
+          for(long currlabelnumb=0; currlabelnumb<(this->NumberOfLabels); currlabelnumb++)
+              tmpW[currlabelnumb]=0.0f;
+
+
+          float sumNCC_at_thisVoxel = 0.0;
+          for(long classifier=0; classifier<this->Numb_Neigh; classifier++)
+              sumNCC_at_thisVoxel += this->LNCCvalues[i+classifier*this->CurrSizes->numel];
+
+          if (sumNCC_at_thisVoxel >0)
+          {
+            for(long classifier=0; classifier<this->Numb_Neigh; classifier++)
+            {
+              int est_by_thisAtlas_at_thisVoxel = inputCLASSIFIERptr[i+classifier*this->CurrSizes->numel];
+
+              if ( ! isnan(this->LNCCvalues[i+classifier*this->CurrSizes->numel]))
+                if ( this->LNCCvalues[i+classifier*this->CurrSizes->numel] > 0.0001)
+                  tmp_label_scores_at_thisVoxel [est_by_thisAtlas_at_thisVoxel] += this->LNCCvalues[i+classifier*this->CurrSizes->numel] ; // / sumNCC_at_thisVoxel;
+              // int LNCCvalue=(int)(this->LNCC[i+classifier*this->CurrSizes->numel]);
+              // if(LNCCvalue>=0 && LNCCvalue<this->CurrSizes->numclass)
+              // {
+              //     tmpW[inputCLASSIFIERptr[i+LNCCvalue*this->CurrSizes->numel]]++;
+              // }
+            }
+            for(long iLab = 0; iLab<this->NumberOfLabels; iLab++)
+              tmp_label_scores_at_thisVoxel [ iLab ] *= tmp_label_scores_at_thisVoxel [ iLab ];
+
+          }
+          else
+            tmp_label_scores_at_thisVoxel [ 0 ] = 1;
+
+
+          float best_score_at_thix_voxel = 0.0;
+          int label_with_best_score_at_thix_voxel = 0;
+
+          for(long iLab = 0; iLab<this->NumberOfLabels; iLab++)
+          {
+            if ( ( (best_score_at_thix_voxel - tmp_label_scores_at_thisVoxel[iLab]) < 0.000001) &&  (tmp_label_scores_at_thisVoxel[iLab] > 0.000001))
+            {
+              best_score_at_thix_voxel = tmp_label_scores_at_thisVoxel[iLab];
+              label_with_best_score_at_thix_voxel = iLab;
+            }
+          }
+
+          this->W[i]=label_with_best_score_at_thix_voxel;
+
+          // segPrecisionTYPE tmpmaxval=-1;
+          // segPrecisionTYPE tmpmaxindex=-1;
+          //
+          // if(this->NumberOfLabels>2)
+          // {
+          //     for(long currlabelnumb=0; currlabelnumb<(this->NumberOfLabels); currlabelnumb++)
+          //     {
+          //         if(tmpmaxval<tmpW[currlabelnumb])
+          //         {
+          //             tmpmaxval=tmpW[currlabelnumb];
+          //             tmpmaxindex=currlabelnumb;
+          //         }
+          //     }
+          //     this->W[i]=tmpmaxindex;
+          // }
+          // else
+          // {
+          //     this->W[i]=tmpW[1]/(float)this->Numb_Neigh;
+          // }
+
+        }
+        else if(this->NCC_status)
+        {
+            for(long currlabelnumb=0; currlabelnumb<(this->NumberOfLabels); currlabelnumb++)
+            {
+                tmpW[currlabelnumb]=0.0f;
+            }
+            for(long classifier=0; classifier<this->Numb_Neigh; classifier++)
+            {
+                int NCCvalue=(int)(this->NCC[classifier]);
+                if(NCCvalue>=0 && NCCvalue<this->CurrSizes->numclass)
+                {
+                    tmpW[inputCLASSIFIERptr[i+NCCvalue*this->CurrSizes->numel]]++;
+                }
+            }
+            segPrecisionTYPE tmpmaxval=0;
+            segPrecisionTYPE tmpmaxindex=0;
+            if(this->NumberOfLabels>2)
+            {
+                for(long currlabelnumb=0; currlabelnumb<(this->NumberOfLabels); currlabelnumb++)
+                {
+                    if(tmpmaxval<tmpW[currlabelnumb])
+                    {
+                        tmpmaxval=tmpW[currlabelnumb];
+                        tmpmaxindex=currlabelnumb;
+                    }
+                }
+                this->W[i]=tmpmaxindex;
+            }
+            else
+            {
+                this->W[i]=tmpW[1]/(float)this->Numb_Neigh;
+            }
+        }
+        else
+        {
+            for(long currlabelnumb=0; currlabelnumb<(this->NumberOfLabels); currlabelnumb++)
+            {
+                tmpW[currlabelnumb]=0.0f;
+            }
+            for(long classifier=0; classifier<this->CurrSizes->numclass; classifier++)
+            {
+                tmpW[inputCLASSIFIERptr[i+classifier*this->CurrSizes->numel]]++;
+
+            }
+            segPrecisionTYPE tmpmaxval=-1;
+            segPrecisionTYPE tmpmaxindex=-1;
+            if(this->NumberOfLabels>2)
+            {
+                for(long currlabelnumb=0; currlabelnumb<(this->NumberOfLabels); currlabelnumb++)
+                {
+                    if(tmpmaxval<tmpW[currlabelnumb])
+                    {
+                        tmpmaxval=tmpW[currlabelnumb];
+                        tmpmaxindex=currlabelnumb;
+                    }
+                }
+                this->W[i]=tmpmaxindex;
+            }
+            else
+            {
+                this->W[i]=tmpW[1]/(float)this->CurrSizes->numclass;
+            }
+        }
+    }
+    delete [] tmpW;
+    return 1;
+
+}
 
 int seg_LabFusion::MV_Estimate()
 {
@@ -2035,8 +2204,12 @@ int  seg_LabFusion::Run_MV()
 
 
     Allocate_Stuff_MV();
-    MV_Estimate();
 
+
+    if (this->Numb_Neigh == this->inputCLASSIFIER->nt)
+      MV_Estimate_pgd();
+    else
+      MV_Estimate();
 
     return 0;
 }

@@ -78,6 +78,7 @@ void Usage(char *exec)
     printf("\t\t\t\t\t| Size of the kernel (k), number of local classifiers to use (n),\n");
     printf("\t\t\t\t\t| Original image to segment (3D Image), registered templates (4D Image).\n");
     printf("\t\t\t\t\t| LNCC is only available for STAPLE and MV.\n\n");
+    printf("\t\t\t\t\t| Note: LNCC is used for weighting when all classifiers are used (n = number of templates).\n\n");
     //printf("\t-LM <n> <metric> \t| Any voxelwise local metric (higher metric value is more similar):\n");
     //printf("\t\t\t\t\t| number of local classifiers to use (n), similarity <metric> as a 4D Image.\n");
 
@@ -778,7 +779,8 @@ int main(int argc, char **argv)
                     flush(cout);
                 }
                 LabFusion.SetLNCC(LNCC,BaseImage,LNCC_kernel,Numb_Neigh);
-                nifti_image_free(LNCC);
+                if (LNCC->nt != Numb_Neigh)
+                  nifti_image_free(LNCC);
 
             }
         }

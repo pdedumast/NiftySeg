@@ -1668,6 +1668,158 @@ float seg_getNMIValue(nifti_image *img1,
 
 /* *************************************************************** */
 
+
+segPrecisionTYPE * estimateLNCC5D_pgd(nifti_image * BaseImage, nifti_image * LNCC,float distance,int numberordered,ImageSize * CurrSizes,int verbose)
+{
+
+    std::cout << "    in estimateLNCC5D_pgd()" << std::endl;
+    segPrecisionTYPE * LNCCptr = static_cast<segPrecisionTYPE *>(LNCC->data);
+    segPrecisionTYPE * BaseImageptr = static_cast<segPrecisionTYPE *>(BaseImage->data);
+    unsigned char * LNCC_ordered=NULL;
+    long BaseImageXYZsize=BaseImage->nx*BaseImage->ny*BaseImage->nz;
+    segPrecisionTYPE * BaseMean=new segPrecisionTYPE [BaseImageXYZsize*BaseImage->nt];
+    if(BaseMean == NULL)
+    {
+        fprintf(stderr,"* Error when alocating BaseMean in function seg_norm4LNCC");
+        seg_exit();
+    }
+    segPrecisionTYPE * BaseSTD=new segPrecisionTYPE [BaseImageXYZsize*BaseImage->nt];
+    if(BaseSTD == NULL)
+    {
+        fprintf(stderr,"* Error when alocating BaseSTD in function seg_norm4LNCC");
+        seg_exit();
+    }
+
+    // CALC MEAN AND STD OF THE BASE
+    if (verbose>0)
+    {
+        cout << "Calculating LNCC"<<endl;
+        cout << "Local Mean and STD of the base image"<<endl;
+        flush(cout);
+    }
+    for(long i=0; i<BaseImageXYZsize*BaseImage->nt; i++)
+    {
+        BaseMean[i]=BaseImageptr[i];
+        BaseSTD[i]=BaseImageptr[i]*BaseImageptr[i];
+    }
+    // Calc Mean
+    int realt=CurrSizes->tsize;
+    CurrSizes->tsize=1;
+    for(long currmodality=0; currmodality<BaseImage->nt; currmodality++)
+    {
+        if (verbose>0)
+        {
+            cout << "Modality "<<currmodality+1<<"/"<<BaseImage->nt<<endl;
+            flush(cout);
+        }
+        GaussianFilter4D_cArray(&BaseMean[currmodality*BaseImageXYZsize],(float)(distance),CurrSizes);
+        GaussianFilter4D_cArray(&BaseSTD[currmodality*BaseImageXYZsize],(float)(distance),CurrSizes);
+    }
+
+    for(long i=0; i<BaseImageXYZsize*BaseImage->nt; i++)
+    {
+        BaseSTD[i]=BaseSTD[i]-BaseMean[i]*BaseMean[i];
+    }
+
+    // CALC LNCC FOR EACH
+    if (verbose>0)
+    {
+        cout << "Local Mean and STD of the Template images"<<endl;
+        flush(cout);
+    }
+
+#ifdef _OPENMP
+#pragma omp parallel for shared(BaseImageptr, BaseSTD, BaseMean, LNCC, BaseImage, verbose, cout, LNCCptr, CurrSizes, distance)
+#endif
+
+    for(long currlable=0; currlable<CurrSizes->numclass; currlable++)
+    {
+        for(long currmodality=0; currmodality<CurrSizes->nummod; currmodality++)
+        {
+            segPrecisionTYPE * bufferMean=new segPrecisionTYPE [BaseImageXYZsize];
+            if(bufferMean == NULL)
+            {
+                fprintf(stderr,"* Error when alocating bufferMean in function seg_norm4LNCC");
+                seg_exit();
+            }
+            segPrecisionTYPE * bufferSTD=new segPrecisionTYPE [BaseImageXYZsize];
+            if(bufferSTD == NULL)
+            {
+                fprintf(stderr,"* Error when alocating bufferSTD in function seg_norm4LNCC");
+                seg_exit();
+            }
+            segPrecisionTYPE * bufferDATA=new segPrecisionTYPE [BaseImageXYZsize];
+            if(bufferDATA == NULL)
+            {
+                fprintf(stderr,"* Error when alocating bufferDATA in function seg_norm4LNCC");
+                seg_exit();
+            }
+            //for(long currlable=0;currlable<3; currlable++){
+            if (verbose>0)
+            {
+                std::stringstream stream;
+                stream << "Template "<<currlable+1 << "/" << LNCC->nt<<"  - Modality "<<currmodality+1<<"/"<<CurrSizes->nummod<<"\n";
+                std::cout << stream.str();
+            }
+            segPrecisionTYPE * currLNCCptr = &LNCCptr[currlable*BaseImageXYZsize + currmodality*BaseImageXYZsize*CurrSizes->numclass];
+            for(long i=0; i<BaseImageXYZsize; i++)
+            {
+                bufferDATA[i]=currLNCCptr[i]*BaseImageptr[i+currmodality*BaseImageXYZsize];
+                bufferMean[i]=currLNCCptr[i];
+                bufferSTD[i]=currLNCCptr[i]*currLNCCptr[i];
+            }
+
+            // Calc Mean
+            GaussianFilter4D_cArray(bufferMean,(float)(distance),CurrSizes);
+            GaussianFilter4D_cArray(bufferSTD,(float)(distance),CurrSizes);
+            GaussianFilter4D_cArray(bufferDATA,(float)(distance),CurrSizes);
+
+            currLNCCptr=&LNCCptr[currlable*BaseImageXYZsize];
+            for(long i=0; i<BaseImageXYZsize; i++)
+            {
+                bufferSTD[i]=bufferSTD[i]-bufferMean[i]*bufferMean[i];
+                float tmpLNCC=(bufferDATA[i]-BaseMean[i+currmodality*BaseImageXYZsize]*bufferMean[i])/(sqrt(bufferSTD[i]*BaseSTD[i+currmodality*BaseImageXYZsize])+0.000001);
+                if(currmodality==0){
+                    currLNCCptr[i]=(tmpLNCC>0?tmpLNCC:0);
+                }
+                else{
+                    LNCCptr[i+currlable*BaseImageXYZsize]+=(tmpLNCC>0?tmpLNCC:0);
+                }
+
+            }
+            delete [] bufferSTD;
+            delete [] bufferMean;
+            delete [] bufferDATA;
+        }
+    }
+    delete [] BaseSTD;
+    delete [] BaseMean;
+
+    CurrSizes->tsize=realt;
+    // cout << "Filtering LNCC"<< endl;
+    //  Gaussian_Filter_4D(LNCCptr,(float)(distance),CurrSizes);
+
+    LNCC_ordered=new unsigned char [numberordered*BaseImage->nx*BaseImage->ny*BaseImage->nz];
+    if(LNCC_ordered == NULL)
+    {
+        fprintf(stderr,"* Error when alocating LNCC_ordered in function seg_norm4LNCC");
+        seg_exit();
+    }
+
+
+    if (verbose>0)
+    {
+        cout << "Sorting LNCC"<<endl;
+    }
+
+
+
+    return LNCCptr;
+}
+
+
+
+
 unsigned char * estimateLNCC5D(nifti_image * BaseImage, nifti_image * LNCC,float distance,int numberordered,ImageSize * CurrSizes,int verbose)
 {
 

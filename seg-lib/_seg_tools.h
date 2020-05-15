@@ -42,7 +42,10 @@ NIFTYSEG_WINEXPORT void HeapSort(float * a,int n);
 // Estimate the order of multiple types of NCC similarity (local, global, regional, multilevel) given the input target image and a 4D set of resampled images. To be used for label fusion.
 NIFTYSEG_WINEXPORT unsigned char * estimateNCC4D(nifti_image * BaseImage,nifti_image * NCC,int numberordered,ImageSize * CurrSizes,int verbose);
 NIFTYSEG_WINEXPORT unsigned char * estimateROINCC4D(nifti_image * LableImage,nifti_image * BaseImage,nifti_image * LNCC,int numberordered,ImageSize * CurrSizes,int DilSize, int verbose);
+
 NIFTYSEG_WINEXPORT unsigned char * estimateLNCC5D(nifti_image * BaseImage,nifti_image * LNCC,float distance,int numberordered,ImageSize * CurrSizes,int verbose);
+NIFTYSEG_WINEXPORT segPrecisionTYPE * estimateLNCC5D_pgd(nifti_image * BaseImage,nifti_image * LNCC,float distance,int numberordered,ImageSize * CurrSizes,int verbose);
+
 NIFTYSEG_WINEXPORT unsigned char * estimateLNCC4D(nifti_image * BaseImage,nifti_image * LNCC,float distance,int numberordered,ImageSize * CurrSizes,int verbose);
 NIFTYSEG_WINEXPORT unsigned char * estimateMLNCC4D(nifti_image * BaseImage, nifti_image * LNCC,float distance,int labels, int numberordered,ImageSize * CurrSizes,int verbose);
 NIFTYSEG_WINEXPORT float estimateNCC3D(nifti_image * BaseImage,nifti_image * Template,nifti_image * Mask,int verbose);
@@ -70,7 +73,7 @@ template <class OldType, class NewType> NIFTYSEG_WINEXPORT
 template <class OldType, class NewType> NIFTYSEG_WINEXPORT
 	void ConnectComp6NN(void * Old, void * New, ImageSize * Currentsize);
 
-template <class OldType, class NewType> NIFTYSEG_WINEXPORT 
+template <class OldType, class NewType> NIFTYSEG_WINEXPORT
 	void Close_Forground_ConnectComp(void * Old, void * New, ImageSize * Currentsize);
 
 NIFTYSEG_WINEXPORT void Dillate(float * Image,int kernel,ImageSize * Currentsize );
@@ -82,4 +85,3 @@ NIFTYSEG_WINEXPORT void Dillate_const(bool * Image, bool * Const, int kernel, in
 NIFTYSEG_WINEXPORT void otsu(float * Image, int * mask, ImageSize *Currentsize );
 
 template <class DTYPE> NIFTYSEG_WINEXPORT void seg_mat44_mul(mat44 const* mat, DTYPE const* in,DTYPE *out);
-
