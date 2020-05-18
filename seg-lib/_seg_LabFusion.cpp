@@ -1,6 +1,7 @@
 #include "_seg_LabFusion.h"
 #include <math.h>
 
+#define gain_exponent 5
 
 
 seg_LabFusion::seg_LabFusion(int _numb_classif, int numbclasses, int _Numb_Neigh, int _numb_modalities)
@@ -1152,7 +1153,8 @@ int seg_LabFusion::MV_Estimate_pgd()
 
     categoricalLabelType * inputCLASSIFIERptr = static_cast<categoricalLabelType *>(this->inputCLASSIFIER->data);
 
-    std::cout << " PGD - in MV_Estimate_pgd()" << std::endl;
+
+    std::cout << std::endl << std::endl << "gain_exponent  " << gain_exponent << std::endl << std::endl << std::endl;
 
     this->tracePQ=0;
     for(long i=0; i<(this->CurrSizes->numel); i++)
@@ -1168,8 +1170,8 @@ int seg_LabFusion::MV_Estimate_pgd()
               tmp_label_scores_at_thisVoxel [ iLab ] = 0.0;
           }
 
-          for(long currlabelnumb=0; currlabelnumb<(this->NumberOfLabels); currlabelnumb++)
-              tmpW[currlabelnumb]=0.0f;
+          // for(long currlabelnumb=0; currlabelnumb<(this->NumberOfLabels); currlabelnumb++)
+          //     tmpW[currlabelnumb]=0.0f;
 
 
           float sumNCC_at_thisVoxel = 0.0;
@@ -1184,15 +1186,8 @@ int seg_LabFusion::MV_Estimate_pgd()
 
               if ( ! isnan(this->LNCCvalues[i+classifier*this->CurrSizes->numel]))
                 if ( this->LNCCvalues[i+classifier*this->CurrSizes->numel] > 0.0001)
-                  tmp_label_scores_at_thisVoxel [est_by_thisAtlas_at_thisVoxel] += this->LNCCvalues[i+classifier*this->CurrSizes->numel] ; // / sumNCC_at_thisVoxel;
-              // int LNCCvalue=(int)(this->LNCC[i+classifier*this->CurrSizes->numel]);
-              // if(LNCCvalue>=0 && LNCCvalue<this->CurrSizes->numclass)
-              // {
-              //     tmpW[inputCLASSIFIERptr[i+LNCCvalue*this->CurrSizes->numel]]++;
-              // }
+                  tmp_label_scores_at_thisVoxel [est_by_thisAtlas_at_thisVoxel] += pow(this->LNCCvalues[i+classifier*this->CurrSizes->numel], gain_exponent) ;
             }
-            for(long iLab = 0; iLab<this->NumberOfLabels; iLab++)
-              tmp_label_scores_at_thisVoxel [ iLab ] *= tmp_label_scores_at_thisVoxel [ iLab ];
 
           }
           else
@@ -1212,26 +1207,6 @@ int seg_LabFusion::MV_Estimate_pgd()
           }
 
           this->W[i]=label_with_best_score_at_thix_voxel;
-
-          // segPrecisionTYPE tmpmaxval=-1;
-          // segPrecisionTYPE tmpmaxindex=-1;
-          //
-          // if(this->NumberOfLabels>2)
-          // {
-          //     for(long currlabelnumb=0; currlabelnumb<(this->NumberOfLabels); currlabelnumb++)
-          //     {
-          //         if(tmpmaxval<tmpW[currlabelnumb])
-          //         {
-          //             tmpmaxval=tmpW[currlabelnumb];
-          //             tmpmaxindex=currlabelnumb;
-          //         }
-          //     }
-          //     this->W[i]=tmpmaxindex;
-          // }
-          // else
-          // {
-          //     this->W[i]=tmpW[1]/(float)this->Numb_Neigh;
-          // }
 
         }
         else if(this->NCC_status)
